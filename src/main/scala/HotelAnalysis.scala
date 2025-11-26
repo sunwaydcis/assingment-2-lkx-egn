@@ -59,4 +59,23 @@ object HotelAnalysis {
         List.empty[Booking]
     }
   }
+
+  def main(args: Array[String]): Unit = {
+    println("--- Hotel Booking Data Analysis ---")
+
+    val data = loadBookingData("Hotel_Dataset.csv")
+
+    if (data.isEmpty) {
+      println("No data found. Please check the dataset file.")
+    } else {
+
+      // ------------------ Question 1 ------------------ //
+      // Which country has the highest number of bookings //
+      val bookingsByCountry = data.groupBy(_.destinationCountry)
+      val topCountry = bookingsByCountry.map { case (country, bookings) =>
+        (country, bookings.size)
+      }.maxBy(_._2)
+
+    }
+  }
 }
