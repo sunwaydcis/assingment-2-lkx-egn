@@ -76,6 +76,25 @@ object HotelAnalysis {
         (country, bookings.size)
       }.maxBy(_._2)
 
+      // ----------------------- Question 2 ------------------------- //
+      // Which hotel offers the most economical option for customers? //
+
+      println(s"1. Country with highest number of bookings: ${topCountry._1} with ${topCountry._2} bookings.")
+
+      // a. Best Price
+      val cheapestHotel = data.minBy(_.bookingPrice)
+
+      // b. Best Discount
+      val highestDiscountHotel = data.maxBy(_.discount)
+
+      // c. Best Profit Margin
+      val lowestMarginHotel = data.minBy(_.profitMargin)
+
+      println("\n2. Most Economical Hotels based on criteria:")
+      println(s"   a. Booking Price: ${cheapestHotel.hotelName} (SGD ${cheapestHotel.bookingPrice})")
+      println(s"   b. Discount: ${highestDiscountHotel.hotelName} (${(highestDiscountHotel.discount * 100).toInt}%)")
+      println(s"   c. Profit Margin (Lowest): ${lowestMarginHotel.hotelName} (${lowestMarginHotel.profitMargin})")
+
     }
   }
 }
