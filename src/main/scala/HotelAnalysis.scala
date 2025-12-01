@@ -113,4 +113,30 @@ object HotelAnalysis:
 
     println("\n2. Most Economical Hotels based on criteria:")
 
+    // Question 2a
+    val cheapest = AnalyticsEngine.findMinBy(data)(_.bookingPrice)
+    println(s"   a. Booking Price: ${cheapest.hotelName} (SGD ${cheapest.bookingPrice})")
+
+    // Question 2b
+    val bestDiscount = AnalyticsEngine.findMaxBy(data)(_.discount)
+    println(s"   b. Discount: ${bestDiscount.hotelName} (${(bestDiscount.discount * 100).toInt}%)")
+
+    // Question 2c
+    val lowestMargin = AnalyticsEngine.findMinBy(data)(_.profitMargin)
+    println(s"   c. Profit Margin (Lowest): ${lowestMargin.hotelName} (${lowestMargin.profitMargin})")
+
+    // Question 3
+    val hotelStats = data.groupBy(_.hotelName).view.map { case (hotel, bookings) =>
+      val totalProfit = bookings.map(_.calculatedProfit).sum
+      val totalVisitors = bookings.map(_.visitors).sum
+      (hotel, totalVisitors, totalProfit)
+    }
+
+    val mostProfitable = hotelStats.maxBy(_._3)
+
+    println(s"\n3. Most Profitable Hotel: ${mostProfitable._1}")
+    println(s"   Total Visitors: ${mostProfitable._2}")
+    println(s"   Total Profit Generated: SGD ${f"${mostProfitable._3}%.2f"}")
+  }
+
 end HotelAnalysis
