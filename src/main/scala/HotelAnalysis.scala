@@ -26,6 +26,21 @@ case class HotelBooking(
   override def price: Double = bookingPrice
 end HotelBooking
 
+// Generic Analytics Logic
+object AnalyticsEngine:
+
+  def findMaxBy[T](data: List[T])(selector: T => Double): T =
+    data.maxBy(selector)
+
+  def findMinBy[T](data: List[T])(selector: T => Double): T =
+    data.minBy(selector)
+
+  def findMostFrequentCategory[T](data: List[T])(categoryExtractor: T => String): (String, Int) =
+    val grouped = data.groupBy(categoryExtractor)
+    grouped.map { case (key, items) => (key, items.size) }.maxBy(_._2)
+
+end AnalyticsEngine
+
 object HotelAnalysis {
 
   //File Reading logic
