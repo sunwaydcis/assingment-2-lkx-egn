@@ -1,19 +1,30 @@
-import scala.util.{Try, Success, Failure}
-import scala.io.{Source, Codec}
-import scala.util.{Try, Success, Failure}
+import scala.io.{Codec, Source}
+import scala.util.{Failure, Success, Try}
 import java.nio.charset.CodingErrorAction
 
-//Define the Data Model
-case class Booking(
-                    bookingId: String,
-                    customerOrigin: String,
-                    destinationCountry: String,
-                    hotelName: String,
-                    bookingPrice: Double,
-                    discount: Double,
-                    profitMargin: Double,
-                    visitors: Int
-                  )
+// Define Transaction Interface
+trait Transaction:
+  def id: String
+  def price: Double
+  def profitMargin: Double
+
+// Define Data Model
+case class HotelBooking(
+                         bookingId: String,
+                         customerOrigin: String,
+                         destinationCountry: String,
+                         hotelName: String,
+                         bookingPrice: Double,
+                         discount: Double,
+                         override val profitMargin: Double,
+                         visitors: Int
+                       ) extends Transaction:
+
+  def calculatedProfit: Double = bookingPrice * profitMargin
+
+  override def id: String = bookingId
+  override def price: Double = bookingPrice
+end HotelBooking
 
 object HotelAnalysis {
 
