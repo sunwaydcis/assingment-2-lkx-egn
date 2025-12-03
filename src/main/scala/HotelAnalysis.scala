@@ -35,6 +35,10 @@ object AnalyticsEngine:
   def findMinBy[T](data: List[T])(selector: T => Double): T =
     data.minBy(selector)
 
+  def getRange[T](data: List[T])(selector: T => Double): (Double, Double) =
+    val values = data.view.map(selector)
+    (values.min, values.max)
+
   def findMostFrequentCategory[T](data: List[T])(categoryExtractor: T => String): (String, Int) =
     val grouped = data.groupBy(categoryExtractor)
     grouped.map { case (key, items) => (key, items.size) }.maxBy(_._2)
@@ -113,17 +117,28 @@ object HotelAnalysis:
 
     println("\n2. Most Economical Hotels based on criteria:")
 
-    // Question 2a
-    val cheapest = AnalyticsEngine.findMinBy(data)(_.bookingPrice)
-    println(s"   a. Booking Price: ${cheapest.hotelName} (SGD ${cheapest.bookingPrice})")
+    // Question 2
+    val (minPrice, maxPrice) = AnalyticsEngine.getRange(data)(_.bookingPrice)
+    val (minDisc, maxDisc)   = AnalyticsEngine.getRange(data)(_.discount)
+    val (minMarg, maxMarg)   = AnalyticsEngine.getRange(data)(_.profitMargin)
 
-    // Question 2b
-    val bestDiscount = AnalyticsEngine.findMaxBy(data)(_.discount)
-    println(s"   b. Discount: ${bestDiscount.hotelName} (${(bestDiscount.discount * 100).toInt}%)")
+    println(s"   [Stats] Price Range:    SGD $minPrice to SGD $maxPrice")
+    println(s"   [Stats] Discount Range: ${(minDisc * 100).toInt}% to ${(maxDisc * 100).toInt}%")
+    println(s"   [Stats] Margin Range:   $minMarg to $maxMarg")
 
-    // Question 2c
-    val lowestMargin = AnalyticsEngine.findMinBy(data)(_.profitMargin)
-    println(s"   c. Profit Margin (Lowest): ${lowestMargin.hotelName} (${lowestMargin.profitMargin})")
+    def normalize(value: Double, min: Double, max: Double): Double =
+      if (max == min) 0.0 else (value - min) / (max - min)
+
+    val mostEconomical = AnalyticsEngine.findMinBy(data) { b =>
+      val normPrice = normalize(b.bookingPrice, minPrice, maxPrice)
+      val normDisc  = normalize(b.discount, minDisc, maxDisc)
+      val normMarg  = normalize(b.profitMargin, minMarg, maxMarg)
+
+      normPrice + (1.0 - normDisc) + normMarg
+    }
+
+    println(s"\n   >> Final Answer: The most economical option is ${mostEconomical.hotelName}")
+    println(s"      (Price: ${mostEconomical.bookingPrice}, Discount: ${mostEconomical.discount}, Margin: ${mostEconomical.profitMargin})")
 
     // Question 3
     val hotelStats = data.groupBy(_.hotelName).view.map { case (hotel, bookings) =>
