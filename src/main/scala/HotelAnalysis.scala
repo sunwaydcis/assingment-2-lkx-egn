@@ -13,6 +13,7 @@ case class HotelBooking(
                          bookingId: String,
                          customerOrigin: String,
                          destinationCountry: String,
+                         city: String,
                          hotelName: String,
                          bookingPrice: Double,
                          discount: Double,
@@ -20,11 +21,20 @@ case class HotelBooking(
                          visitors: Int
                        ) extends Transaction:
 
-  def calculatedProfit: Double = bookingPrice * profitMargin
-
   override def id: String = bookingId
   override def price: Double = bookingPrice
 end HotelBooking
+
+// Class to hold Grouped Data Stats
+case class HotelGroupStats(
+                            country: String,
+                            hotelName: String,
+                            city: String,
+                            avgPrice: Double,
+                            avgDiscount: Double,
+                            avgMargin: Double,
+                            totalVisitors: Int
+                          )
 
 // Generic Analytics Logic
 object AnalyticsEngine:
@@ -35,6 +45,7 @@ object AnalyticsEngine:
   def findMinBy[T](data: List[T])(selector: T => Double): T =
     data.minBy(selector)
 
+  // Generic method to find Min and Max of a value set
   def getRange[T](data: List[T])(selector: T => Double): (Double, Double) =
     val values = data.view.map(selector)
     (values.min, values.max)
@@ -42,6 +53,15 @@ object AnalyticsEngine:
   def findMostFrequentCategory[T](data: List[T])(categoryExtractor: T => String): (String, Int) =
     val grouped = data.groupBy(categoryExtractor)
     grouped.map { case (key, items) => (key, items.size) }.maxBy(_._2)
+
+  // Normalization Logic
+  def normalizeInverted(value: Double, min: Double, max: Double): Double =
+    if (max == min) 100.0
+    else (1.0 - ((value - min) / (max - min))) * 100.0
+
+  def normalizeStandard(value: Double, min: Double, max: Double): Double =
+    if (max == min) 0.0
+    else ((value - min) / (max - min)) * 100.0
 
 end AnalyticsEngine
 
@@ -71,6 +91,7 @@ object DataLoader:
       val cols = line.split(",").map(_.trim)
 
       Try {
+        // Validation check for column count
         if (cols.length < 24) throw new Exception("Incomplete row")
 
         val price = cols(20).toDouble
@@ -78,12 +99,16 @@ object DataLoader:
         val discount = if (cols(21).contains("%")) discountStr.toDouble / 100 else discountStr.toDouble
         val margin = cols(23).toDouble
 
+        // Assumption: City is at index 10. Update this index if your CSV differs.
+        val cityStr = if (cols.length > 10) cols(10) else "Unknown"
+
         HotelBooking(
           bookingId = cols(0),
           customerOrigin = cols(6),
           destinationCountry = cols(9),
+          city = cityStr,
           hotelName = cols(16),
-          bookingPrice = price,
+          bookingPrice = price, // Taking price "as is"
           discount = discount,
           profitMargin = margin,
           visitors = cols(11).toInt
@@ -98,7 +123,7 @@ end DataLoader
 object HotelAnalysis:
 
   def main(args: Array[String]): Unit = {
-    println("--- Hotel Booking Data Analysis ---")
+    println("=-=-=-=-=-=-=-=- Hotel Booking Data Analysis -=-=-=-=-=-=-=-=-=")
 
     val data = DataLoader.loadBookingData("Hotel_Dataset.csv")
 
@@ -111,47 +136,74 @@ object HotelAnalysis:
 
   def runAnalysis(data: List[HotelBooking]): Unit = {
 
+    // Group Data by (Country, Hotel, City)
+    val groupedData = data.groupBy(b => (b.destinationCountry, b.hotelName, b.city))
+      .map { case ((country, hotel, city), bookings) =>
+        val avgPrice = bookings.map(_.bookingPrice).sum / bookings.size
+        val avgDiscount = bookings.map(_.discount).sum / bookings.size
+        val avgMargin = bookings.map(_.profitMargin).sum / bookings.size
+        val totalVis = bookings.map(_.visitors).sum
+
+        HotelGroupStats(country, hotel, city, avgPrice, avgDiscount, avgMargin, totalVis)
+      }.toList
+
     // Question 1
     val (country, count) = AnalyticsEngine.findMostFrequentCategory(data)(_.destinationCountry)
     println(s"1. Country with highest number of bookings: $country with $count bookings.")
 
-    println("\n2. Most Economical Hotels based on criteria:")
 
-    // Question 2
-    val (minPrice, maxPrice) = AnalyticsEngine.getRange(data)(_.bookingPrice)
-    val (minDisc, maxDisc)   = AnalyticsEngine.getRange(data)(_.discount)
-    val (minMarg, maxMarg)   = AnalyticsEngine.getRange(data)(_.profitMargin)
+    // --- Question 2
+    println("\n2. Most Economical Hotel (Based on Score Logic):")
 
-    println(s"   [Stats] Price Range:    SGD $minPrice to SGD $maxPrice")
-    println(s"   [Stats] Discount Range: ${(minDisc * 100).toInt}% to ${(maxDisc * 100).toInt}%")
-    println(s"   [Stats] Margin Range:   $minMarg to $maxMarg")
+    val (minP, maxP) = AnalyticsEngine.getRange(groupedData)(_.avgPrice)
+    val (minD, maxD) = AnalyticsEngine.getRange(groupedData)(_.avgDiscount)
+    val (minM, maxM) = AnalyticsEngine.getRange(groupedData)(_.avgMargin)
 
-    def normalize(value: Double, min: Double, max: Double): Double =
-      if (max == min) 0.0 else (value - min) / (max - min)
+    val bestEconomical = groupedData.map { group =>
 
-    val mostEconomical = AnalyticsEngine.findMinBy(data) { b =>
-      val normPrice = normalize(b.bookingPrice, minPrice, maxPrice)
-      val normDisc  = normalize(b.discount, minDisc, maxDisc)
-      val normMarg  = normalize(b.profitMargin, minMarg, maxMarg)
+      val scorePrice = AnalyticsEngine.normalizeInverted(group.avgPrice, minP, maxP)
 
-      normPrice + (1.0 - normDisc) + normMarg
-    }
+      val scoreDiscount = AnalyticsEngine.normalizeStandard(group.avgDiscount, minD, maxD)
 
-    println(s"\n   >> Final Answer: The most economical option is ${mostEconomical.hotelName}")
-    println(s"      (Price: ${mostEconomical.bookingPrice}, Discount: ${mostEconomical.discount}, Margin: ${mostEconomical.profitMargin})")
+      val scoreMargin = AnalyticsEngine.normalizeInverted(group.avgMargin, minM, maxM)
 
-    // Question 3
-    val hotelStats = data.groupBy(_.hotelName).view.map { case (hotel, bookings) =>
-      val totalProfit = bookings.map(_.calculatedProfit).sum
-      val totalVisitors = bookings.map(_.visitors).sum
-      (hotel, totalVisitors, totalProfit)
-    }
+      val finalScore = (scorePrice + scoreDiscount + scoreMargin) / 3.0
 
-    val mostProfitable = hotelStats.maxBy(_._3)
+      (group, finalScore, scorePrice, scoreDiscount, scoreMargin)
+    }.maxBy(_._2)
 
-    println(s"\n3. Most Profitable Hotel: ${mostProfitable._1}")
-    println(s"   Total Visitors: ${mostProfitable._2}")
-    println(s"   Total Profit Generated: SGD ${f"${mostProfitable._3}%.2f"}")
+    val (ecoHotel, ecoScore, sP, sD, sM) = bestEconomical
+
+    println(s"   Winner: ${ecoHotel.hotelName} (${ecoHotel.city}, ${ecoHotel.country})")
+    println(s"   Final Economical Score: ${f"$ecoScore%.2f"}")
+    println(s"   Details -> Avg Price: ${f"${ecoHotel.avgPrice}%.2f"} (Score: ${f"$sP%.1f"}), " +
+      s"Avg Discount: ${f"${ecoHotel.avgDiscount * 100}%.1f"}%% (Score: ${f"$sD%.1f"}), " +
+      s"Avg Margin: ${f"${ecoHotel.avgMargin}%.4f"} (Score: ${f"$sM%.1f"})")
+
+
+    // --- Question 3
+    println("\n3. Most Profitable Hotel (Based on Visitor & Margin Score):")
+
+    val (minVis, maxVis) = AnalyticsEngine.getRange(groupedData)(_.totalVisitors.toDouble)
+
+    val bestProfitable = groupedData.map { group =>
+
+      val scoreVis = AnalyticsEngine.normalizeStandard(group.totalVisitors.toDouble, minVis, maxVis)
+
+
+      val scoreMarg = AnalyticsEngine.normalizeStandard(group.avgMargin, minM, maxM)
+
+      val finalScore = (scoreVis + scoreMarg) / 2.0
+
+      (group, finalScore, scoreVis, scoreMarg)
+    }.maxBy(_._2)
+
+    val (profHotel, profScore, sV, sMarg) = bestProfitable
+
+    println(s"   Winner: ${profHotel.hotelName} (${profHotel.city}, ${profHotel.country})")
+    println(s"   Final Profitable Score: ${f"$profScore%.2f"}")
+    println(s"   Details -> Total Visitors: ${profHotel.totalVisitors} (Score: ${f"$sV%.1f"}), " +
+      s"Avg Margin: ${f"${profHotel.avgMargin}%.4f"} (Score: ${f"$sMarg%.1f"})")
   }
 
 end HotelAnalysis
